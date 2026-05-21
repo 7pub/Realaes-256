@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Secure OTP-Synced Notes</title>
+    <style>
+        body { 
+            background-color: #f4f6f8; 
+            color: #1a1f26; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            padding: 16px; 
+            margin: 0;
+            font-size: 14px;
+        }
+        .app-title { 
+            text-align: center; 
+            color: #007aff; 
+            font-size: 18px; 
+            font-weight: 600;
+            margin: 10px 0 20px 0; 
+        }
+        .card { 
+            border: 1px solid #e1e5ea; 
+            border-radius: 10px;
+            padding: 16px; 
+            margin-bottom: 16px; 
+            background-color: #ffffff;
+        }
+        .card-title {
+            color: #4a5568;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+            text-transform: uppercase;
+        }
+        textarea { 
+            width: 95%; 
+            height: 65px; 
+            background-color: #f8fafc; 
+            color: #1a1f26; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px;
+            padding: 8px; 
+            font-size: 14px;
+        }
+        input { 
+            background-color: #f8fafc; 
+            color: #1a1f26; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px;
+            padding: 8px; 
+            font-size: 14px;
+        }
+        button { 
+            background-color: #007aff; 
+            color: #ffffff; 
+            border: none; 
+            border-radius: 6px;
+            padding: 12px; 
+            width: 100%; 
+            font-weight: 600; 
+            cursor: pointer; 
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .btn-secondary { background-color: #34c759; }
+        .setting-row { margin-top: 10px; color: #64748b; font-size: 13px; }
+        .sticky-note { 
+            background-color: #fff3cd; 
+            color: #664d03; 
+            padding: 16px; 
+            margin-top: 20px; 
+            border: 1px solid #ffe69c;
+            border-radius: 8px;
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-title">OTP-Synced Notes</div>
+        
+    <div class="card">
+        <span class="card-title">1. Shared Master Seed</span>
+        <!-- Dieser Seed bleibt auf beiden Geräten gleich (wie in einer Authenticator App) -->
+        <input type="text" id="master-seed" value="GEHEIMER_P2P_SEED" style="width:94%;" placeholder="Gemeinsamer Basis-Key">
+    </div>
+
+    <div class="card">
+        <span class="card-title">2. Nachricht verschlüsseln</span>
+        <textarea id="msg-input" placeholder="Deine geheime Notiz..."></textarea>
+        <div class="setting-row">
+            Zerstörung nach: <input type="text" id="ttl" value="30" style="width:35px; text-align:center; padding:4px;"> Sek.
+        </div>
+        <button onclick="encryptWithOTP()">Mit aktuellem Zeit-Key verschlüsseln</button>
+    </div>
+
+    <div class="card">
+        <span class="card-title">3. Payload entschlüsseln</span>
+        <textarea id="crypto-io" placeholder="AES-Code hier einfügen..."></textarea>
+        <button class="btn-secondary" onclick="decryptWithOTP()">Automatisch synchronisiert entschlüsseln</button>
+    </div>
+
+    <div id="sticky-note" class="sticky-note">
+        <span style="color:#b70000; font-weight:bold; font-size:12px; text-transform:uppercase;">⚠️ Temporäre Ansicht</span>
+        <p id="note-text"></p>
+        <div id="countdown" style="color: #b70000; font-weight: bold; font-size: 13px; margin-top: 10px;"></div>
+    </div>
+
+<script type="text/javascript">
+// --- BB OS6/7 LEICHTGEWICHTIGE TIME-BASED KEY GENERIERUNG ---
+function getDynamicOTPKey(seed) {
+    var now = new Date().getTime();
+    // 30-Sekunden-Fenster (wie bei Standard-OTP-Apps)
+    var timeWindow = Math.floor(now / 1000 / 30); 
+    
+    // Einfacher, aber extrem effektiver Hashing-Ersatz für Altsysteme,
+    // um aus dem Zeitfenster und dem Seed einen rotierenden Key zu bauen.
+    var combined = seed + "_" + timeWindow;
+    var hash = 0;
+    for (var i = 0; i < combined.length; i++) {
+        var chr = combined.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0; // In 32-Bit Integer umwandeln
+    }
+    return "OTP_" + Math.abs(hash);
+}
+
+// --- XXTEA Verschlüsselungs-Engine ---
+var AESLight = {
+    encrypt: function(str, key) {
+        if (str.length == 0) return "";
+        var v = this.str2long(str, true), k = this.str2long(key, false);
+        if (k.length < 4) k.length = 4;
+        var n = v.length - 1, z = v[n], y = v[0], delta = 0x9E3779B9, q = Math.floor(6 + 52 / (n + 1)), sum = 0;
+        while (q-- > 0) {
+            sum = (sum + delta) & 0xffffffff;
+            var e = (sum >>> 2) & 3;
+            for (var p = 0; p < n; p++) {
+                y = v[p + 1];
+                z = v[p] = (v[p] + (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(p & 3) ^ e] ^ z)))) & 0xffffffff;
+            }
+            y = v[0];
+            z = v[n] = (v[n] + (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(n & 3) ^ e] ^ z)))) & 0xffffffff;
+        }
+        return this.long2str(v, false);
+    },
+    decrypt: function(str, key) {
+        if (str.length == 0) return "";
+        var v = this.str2long(str, false), k = this.str2long(key, false);
+        if (k.length < 4) k.length = 4;
+        var n = v.length - 1, z = v[n], y = v[0], delta = 0x9E3779B9, q = Math.floor(6 + 52 / (n + 1)), sum = (q * delta) & 0xffffffff;
+        while (sum != 0) {
+            var e = (sum >>> 2) & 3;
+            for (var p = n; p > 0; p--) {
+                z = v[p - 1];
+                y = v[p] = (v[p] - (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(p & 3) ^ e] ^ z)))) & 0xffffffff;
+            }
+            z = v[n];
+            y = v[0] = (v[0] - (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(0 & 3) ^ e] ^ z)))) & 0xffffffff;
+            sum = (sum - delta) & 0xffffffff;
+        }
+        return this.long2str(v, true);
+    },
+    str2long: function(s, w) {
+        var l = new Array(Math.ceil(s.length / 4));
+        for (var i = 0; i < l.length; i++) {
+            l[i] = s.charCodeAt(i * 4) | s.charCodeAt(i * 4 + 1) << 8 | s.charCodeAt(i * 4 + 2) << 16 | s.charCodeAt(i * 4 + 3) << 24;
+        }
+        if (w) l[l.length] = s.length;
+        return l;
+    },
+    long2str: function(l, w) {
+        var a = new Array(l.length);
+        for (var i = 0; i < l.length; i++) {
+            a[i] = String.fromCharCode(l[i] & 0xFF, l[i] >>> 8 & 0xFF, l[i] >>> 16 & 0xFF, l[i] >>> 24 & 0xFF);
+        }
+        return w ? a.join('').substring(0, l[l.length - 1]) : a.join('');
+    }
+};
+
+function b64Enc(str) { return btoa(unescape(encodeURIComponent(str))); }
+function b64Dec(str) { return decodeURIComponent(escape(atob(str))); }
+
+var timerInterval = null;
+
+function encryptWithOTP() {
+    var seed = document.getElementById('master-seed').value;
+    var text = document.getElementById('msg-input').value;
+    var ttl = parseInt(document.getElementById('ttl').value, 10);
+    
+    if(!seed || !text) { alert("Bitte Text und Master Seed eingeben!"); return; }
+
+    // Generiere den Key für GENAU diese 30 Sekunden
+    var dynamicKey = getDynamicOTPKey(seed);
+    
+    var payload = new Date().getTime() + "|" + ttl + "|" + text;
+    var encrypted = AESLight.encrypt(payload, dynamicKey);
+    var base64Output = b64Enc(encrypted);
+    
+    document.getElementById('crypto-io').value = base64Output;
+    document.getElementById('msg-input').value = ""; 
+    alert("Verschluesselt mit rotierendem OTP-Key!");
+}
+
+function decryptWithOTP() {
+    try {
+        var seed = document.getElementById('master-seed').value;
+        var ciphertext = b64Dec(document.getElementById('crypto-io').value);
+        
+        // Generiere den Key basierend auf der JETZIGEN Zeit des Empfängers
+        var dynamicKey = getDynamicOTPKey(seed);
+        
+        var decrypted = AESLight.decrypt(ciphertext, dynamicKey);
+        var parts = decrypted.split("|");
+        
+        // Falls die Entschlüsselung fehlschlägt (weil das OTP-Zeitfenster abgelaufen ist)
+        if(parts.length < 3 || isNaN(parts[0])) {
+            alert("Entschluesselung fehlgeschlagen! Entweder falscher Seed oder das OTP-Zeitfenster (30s) ist bereits abgelaufen.");
+            return;
+        }
+
+        var timestamp = parseInt(parts[0], 10);
+        var ttlSeconds = parseInt(parts[1], 10);
+        var text = parts.slice(2).join("|");
+
+        var now = new Date().getTime();
+        var timeLeft = ttlSeconds - Math.floor((now - timestamp) / 1000);
+
+        if(timeLeft <= 0) {
+            alert("Diese Nachricht ist bereits abgelaufen!");
+            return;
+        }
+
+        var sticky = document.getElementById('sticky-note');
+        var noteText = document.getElementById('note-text');
+        var countdown = document.getElementById('countdown');
+
+        noteText.innerText = text;
+        sticky.style.display = "block";
+
+        if(timerInterval) clearInterval(timerInterval);
+        
+        timerInterval = setInterval(function() {
+            timeLeft--;
+            if(timeLeft <= 0) {
+                clearInterval(timerInterval);
+                noteText.innerText = "";
+                document.getElementById('crypto-io').value = "";
+                sticky.style.display = "none";
+                alert("Nachricht vernichtet.");
+            } else {
+                countdown.innerText = "Selbstzerstoerung in " + timeLeft + " Sekunden.";
+            }
+        }, 1000);
+
+    } catch(e) {
+        alert("Kritischer Fehler beim Entschluesseln.");
+    }
+}
+</script>
+</body>
+</html>

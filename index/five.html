@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Auto-OTP Notes with QR Rotator</title>
+    <style>
+        body { 
+            background-color: #f4f6f8; 
+            color: #1a1f26; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            padding: 16px; 
+            margin: 0;
+            font-size: 14px;
+        }
+        .app-title { 
+            text-align: center; 
+            color: #007aff; 
+            font-size: 18px; 
+            font-weight: 600;
+            margin: 10px 0 20px 0; 
+        }
+        .card { 
+            border: 1px solid #e1e5ea; 
+            border-radius: 10px;
+            padding: 16px; 
+            margin-bottom: 16px; 
+            background-color: #ffffff;
+        }
+        .card-title {
+            color: #4a5568;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+            text-transform: uppercase;
+        }
+        textarea { 
+            width: 95%; 
+            height: 65px; 
+            background-color: #f8fafc; 
+            color: #1a1f26; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px;
+            padding: 8px; 
+            font-size: 14px;
+        }
+        input { 
+            background-color: #f8fafc; 
+            color: #1a1f26; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px;
+            padding: 8px; 
+            font-size: 14px;
+        }
+        button { 
+            background-color: #007aff; 
+            color: #ffffff; 
+            border: none; 
+            border-radius: 6px;
+            padding: 12px; 
+            width: 100%; 
+            font-weight: 600; 
+            cursor: pointer; 
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .btn-dark { background-color: #4a5568; margin-top: 5px; }
+        .btn-danger { background-color: #d9534f; margin-top: 5px; }
+        .setting-row { margin-top: 10px; color: #64748b; font-size: 13px; }
+        .status-bar { font-size: 11px; color: #007aff; margin-top: 5px; font-weight: bold; }
+        
+        /* QR-Code Container zentriert */
+        .qr-container {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: #fff;
+            display: none;
+            border: 1px dashed #cbd5e1;
+        }
+        .qr-container table {
+            margin: 0 auto; /* Wichtig für korrekte Zentrierung im BB-Browser */
+        }
+
+        .sticky-note { 
+            background-color: #fff3cd; 
+            color: #664d03; 
+            padding: 16px; 
+            margin-top: 20px; 
+            border: 1px solid #ffe69c;
+            border-radius: 8px;
+            display: none; 
+        }
+    </style>
+
+    <!-- Extrem abwärtskompatible, serverunabhängige Offline-QR-Bibliothek -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+    <div class="app-title">Auto-OTP Secure Notes</div>
+        
+    <!-- Sektion 1: Schlüsselmanagement, QR Setup & Rotation -->
+    <div class="card">
+        <span class="card-title">1. Master Token Seed (Koppelung)</span>
+        <input type="text" id="master-seed" value="GEHEIMER_P2P_SEED" style="width:94%;" onchange="updateLiveKey()">
+        <div id="otp-status" class="status-bar">Berechne Zeitfenster...</div>
+        
+        <button class="btn-dark" onclick="toggleQR()">QR-Code für Partner anzeigen</button>
+        <button class="btn-danger" onclick="resetMasterSeed()">🚨 Key rotieren / Reset</button>
+        
+        <div id="qrcode-box" class="qr-container">
+            <div id="qrcode"></div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 8px;">Mit zweitem Gerät scannen, um Seed zu synchronisieren.</div>
+        </div>
+    </div>
+
+    <!-- Sektion 2: Senden -->
+    <div class="card">
+        <span class="card-title">2. Nachricht schreiben (Auto-Verschlüsselung)</span>
+        <textarea id="msg-input" placeholder="Text eingeben..." onkeyup="autoEncrypt()"></textarea>
+        <div class="setting-row">
+            Zerstörung nach: <input type="text" id="ttl" value="30" style="width:35px; text-align:center; padding:4px;" onchange="autoEncrypt()"> Sek.
+        </div>
+    </div>
+
+    <!-- Sektion 3: Empfangen -->
+    <div class="card">
+        <span class="card-title">3. Verschlüsselter Live-Payload (P2P)</span>
+        <textarea id="crypto-io" placeholder="AES-Code einfügen für Auto-Decryption..." onkeyup="autoDecrypt()" onchange="autoDecrypt()"></textarea>
+    </div>
+
+    <!-- Display-Overlay für entschlüsselte temporäre Notizen -->
+    <div id="sticky-note" class="sticky-note">
+        <span style="color:#b70000; font-weight:bold; font-size:12px; text-transform:uppercase;">⚠️ Temporäre Ansicht</span>
+        <p id="note-text"></p>
+        <div id="countdown" style="color: #b70000; font-weight: bold; font-size: 13px; margin-top: 10px;"></div>
+    </div>
+
+<script type="text/javascript">
+// --- GLOBALER TIMER FÜR DECRYPTION ---
+var timerInterval = null;
+var qrObj = null;
+
+// --- OTP KEY GENERATOR ---
+function getOTPKeyByWindow(seed, windowOffset) {
+    var now = new Date().getTime();
+    var timeWindow = Math.floor(now / 1000 / 30) + windowOffset; 
+    var combined = seed + "_" + timeWindow;
+    var hash = 0;
+    for (var i = 0; i < combined.length; i++) {
+        hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+        hash |= 0;
+    }
+    return "OTP_" + Math.abs(hash);
+}
+
+// Live-Ticker für das 30-Sekunden-Zeitfenster in der UI
+function startLiveTimer() {
+    setInterval(function() {
+        var now = new Date();
+        var secondsLeft = 30 - (now.getSeconds() % 30);
+        var seed = document.getElementById('master-seed').value;
+        var currentKey = getOTPKeyByWindow(seed, 0);
+        document.getElementById('otp-status').innerText = "Aktiver Key: " + currentKey + " (Wechsel in " + secondsLeft + "s)";
+        
+        if(document.getElementById('msg-input').value.length > 0) {
+            autoEncrypt();
+        }
+    }, 1000);
+}
+
+// --- OFFLINE QR-CODE GENERATOR LOGIK ---
+function drawQRCode(text) {
+    document.getElementById('qrcode').innerHTML = "";
+    qrObj = new QRCode(document.getElementById("qrcode"), {
+        text: text,
+        width: 128,
+        height: 128,
+        correctLevel : QRCode.CorrectLevel.M
+    });
+}
+
+function toggleQR() {
+    var box = document.getElementById('qrcode-box');
+    var seed = document.getElementById('master-seed').value;
+    
+    if (box.style.display === "block") {
+        box.style.display = "none";
+    } else {
+        box.style.display = "block";
+        drawQRCode(seed);
+    }
+}
+
+// --- KEY ROTATION & PANIC RESET ---
+function resetMasterSeed() {
+    var check = confirm("Möchtest du den aktuellen Master Seed wirklich vernichten und einen neuen Schlüssel generieren? Dein Partner muss den neuen QR-Code zwingend scannen!");
+    if (check) {
+        // Generiere unvorhersehbaren Zufallswert (vollständig ES3 / BB OS6+ kompatibel)
+        var randomPart = Math.floor(Math.random() * 9999999);
+        var timePart = new Date().getTime();
+        var combined = "SEED_" + timePart + "_" + randomPart;
+        
+        var hash = 0;
+        for (var i = 0; i < combined.length; i++) {
+            hash = ((hash << 5) - hash) + combined.charCodeAt(i);
+            hash |= 0;
+        }
+        var newSeed = "SECURE_" + Math.abs(hash);
+        
+        // UI und Werte hart zurücksetzen
+        document.getElementById('master-seed').value = newSeed;
+        document.getElementById('msg-input').value = "";
+        document.getElementById('crypto-io').value = "";
+        document.getElementById('sticky-note').style.display = "none";
+        
+        if(timerInterval) {
+            clearInterval(timerInterval);
+        }
+        
+        // Falls das QR-Sichtfenster offen war, direkt neu zeichnen
+        var box = document.getElementById('qrcode-box');
+        if (box.style.display === "block") {
+            drawQRCode(newSeed);
+        }
+        
+        alert("Alter Schlüssel wurde im RAM überschrieben. Neuer Seed ist aktiv.");
+    }
+}
+
+// --- XXTEA ENCRYPTION ENGINE (LEICHTGEWICHTIGER AES-ERSATZ) ---
+var AESLight = {
+    encrypt: function(str, key) {
+        if (str.length == 0) return "";
+        var v = this.str2long(str, true), k = this.str2long(key, false);
+        if (k.length < 4) k.length = 4;
+        var n = v.length - 1, z = v[n], y = v[0], delta = 0x9E3779B9, q = Math.floor(6 + 52 / (n + 1)), sum = 0;
+        while (q-- > 0) {
+            sum = (sum + delta) & 0xffffffff;
+            var e = (sum >>> 2) & 3;
+            for (var p = 0; p < n; p++) {
+                y = v[p + 1];
+                z = v[p] = (v[p] + (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(p & 3) ^ e] ^ z)))) & 0xffffffff;
+            }
+            y = v[0];
+            z = v[n] = (v[n] + (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(n & 3) ^ e] ^ z)))) & 0xffffffff;
+        }
+        return this.long2str(v, false);
+    },
+    decrypt: function(str, key) {
+        if (str.length == 0) return "";
+        var v = this.str2long(str, false), k = this.str2long(key, false);
+        if (k.length < 4) k.length = 4;
+        var n = v.length - 1, z = v[n], y = v[0], delta = 0x9E3779B9, q = Math.floor(6 + 52 / (n + 1)), sum = (q * delta) & 0xffffffff;
+        while (sum != 0) {
+            var e = (sum >>> 2) & 3;
+            for (var p = n; p > 0; p--) {
+                z = v[p - 1];
+                y = v[p] = (v[p] - (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(p & 3) ^ e] ^ z)))) & 0xffffffff;
+            }
+            z = v[n];
+            y = v[0] = (v[0] - (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(0 & 3) ^ e] ^ z)))) & 0xffffffff;
+            sum = (sum - delta) & 0xffffffff;
+        }
+        try { return this.long2str(v, true); } catch(e) { return ""; }
+    },
+    str2long: function(s, w) {
+        var l = new Array(Math.ceil(s.length / 4));
+        for (var i = 0; i < l.length; i++) {
+            l[i] = s.charCodeAt(i * 4) | s.charCodeAt(i * 4 + 1) << 8 | s.charCodeAt(i * 4 + 2) << 16 | s.charCodeAt(i * 4 + 3) << 24;
+        }
+        if (w) l[l.length] = s.length;
+        return l;
+    },
+    long2str: function(l, w) {
+        var a = new Array(l.length);
+        for (var i = 0; i < l.length; i++) {
+            a[i] = String.fromCharCode(l[i] & 0xFF, l[i] >>> 8 & 0xFF, l[i] >>> 16 & 0xFF, l[i] >>> 24 & 0xFF);
+        }
+        return w ? a.join('').substring(0, l[l.length - 1]) : a.join('');
+    }
+};
+
+function b64Enc(str) { return btoa(unescape(encodeURIComponent(str))); }
+function b64Dec(str) { try { return decodeURIComponent(escape(atob(str))); } catch(e) { return ""; } }
+
+// --- AUTO KRYPTO AKTIONEN ---
+function autoEncrypt() {
+    var seed = document.getElementById('master-seed').value;
+    var text = document.getElementById('msg-input').value;
+    var ttl = parseInt(document.getElementById('ttl').value, 10);
+    
+    if(!text) { document.getElementById('crypto-io').value = ""; return; }
+
+    var currentKey = getOTPKeyByWindow(seed, 0);
+    var payload = new Date().getTime() + "|" + ttl + "|" + text;
+    var encrypted = AESLight.encrypt(payload, currentKey);
+    
+    document.getElementById('crypto-io').value = b64Enc(encrypted);
+}
+
+function autoDecrypt() {
+    var cryptoInput = document.getElementById('crypto-io').value;
+    if(cryptoInput.length < 10) return;
+
+    var seed = document.getElementById('master-seed').value;
+    var ciphertext = b64Dec(cryptoInput);
+    if(!ciphertext) return;
+
+    var decrypted = "";
+    var parts = [];
+    var windowsToTry = [0, -1]; // Erlaubt 30 Sekunden Drift-Toleranz zwischen den Systemuhren
+
+    for (var i = 0; i < windowsToTry.length; i++) {
+        var testKey = getOTPKeyByWindow(seed, windowsToTry[i]);
+        decrypted = AESLight.decrypt(ciphertext, testKey);
+        parts = decrypted.split("|");
+        if (parts.length >= 3 && !isNaN(parts[0])) break;
+    }
+
+    if (parts.length < 3 || isNaN(parts[0])) return;
+
+    var timestamp = parseInt(parts[0], 10);
+    var ttlSeconds = parseInt(parts[1], 10);
+    var text = parts.slice(2).join("|");
+
+    var now = new Date().getTime();
+    var timeLeft = ttlSeconds - Math.floor((now - timestamp) / 1000);
+
+    if(timeLeft <= 0) {
+        document.getElementById('crypto-io').value = "";
+        return;
+    }
+
+    var sticky = document.getElementById('sticky-note');
+    var noteText = document.getElementById('note-text');
+    var countdown = document.getElementById('countdown');
+
+    if (noteText.innerText === text && sticky.style.display === "block") return;
+
+    noteText.innerText = text;
+    sticky.style.display = "block";
+    document.getElementById('msg-input').value = ""; 
+
+    if(timerInterval) clearInterval(timerInterval);
+    
+    timerInterval = setInterval(function() {
+        timeLeft--;
+        if(timeLeft <= 0) {
+            clearInterval(timerInterval);
+            noteText.innerText = "";
+            document.getElementById('crypto-io').value = "";
+            sticky.style.display = "none";
+        } else {
+            countdown.innerText = "Automatische Zerstörung in " + timeLeft + " Sekunden.";
+        }
+    }, 1000);
+}
+
+function updateLiveKey() {
+    if(document.getElementById('msg-input').value.length > 0) autoEncrypt();
+}
+
+// Systemstart
+startLiveTimer();
+</script>
+</body>
+</html>

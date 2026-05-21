@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>BB Secure AES Notes</title>
+    <style>
+        /* Robustes, globales Styling für Altsysteme */
+        body { 
+            background-color: #0d0f12; 
+            color: #33ff33; 
+            font-family: "Courier New", Courier, monospace; 
+            padding: 8px; 
+            margin: 0;
+        }
+        h2 { 
+            text-align: center; 
+            color: #33ff33; 
+            font-size: 16px; 
+            margin: 12px 0; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+        }
+        .container {
+            width: 100%;
+        }
+        /* Modernisierte Boxen mit sauberen Rändern */
+        .box { 
+            border: 1px solid #224422; 
+            padding: 10px; 
+            margin-bottom: 12px; 
+            background-color: #13171c;
+        }
+        .box-title {
+            color: #88ff88;
+            font-size: 12px;
+            margin-bottom: 6px;
+            display: block;
+            text-transform: uppercase;
+        }
+        /* Eingabefelder optimiert für BB Touch & Tastatur */
+        textarea { 
+            width: 96%; 
+            height: 70px; 
+            background-color: #07090c; 
+            color: #33ff33; 
+            border: 1px solid #225522; 
+            padding: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        input { 
+            background-color: #07090c; 
+            color: #ffffff; 
+            border: 1px solid #225522; 
+            padding: 6px; 
+            font-family: monospace;
+            font-size: 13px;
+        }
+        /* Große, griffige Buttons */
+        button { 
+            background-color: #1a3a1a; 
+            color: #33ff33; 
+            border: 1px solid #33ff33; 
+            padding: 10px; 
+            width: 100%; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-size: 13px;
+            margin-top: 6px;
+        }
+        button:active {
+            background-color: #33ff33;
+            color: #000000;
+        }
+        /* Warn-Meldung & Ablauf-Input */
+        .ttl-row {
+            margin-top: 6px;
+            margin-bottom: 8px;
+            color: #888888;
+            font-size: 11px;
+        }
+        /* Modernisierte, auffällige Sticky Note (Post-It Look für Kontrast) */
+        .sticky { 
+            background-color: #ffffcc; 
+            color: #000000; 
+            padding: 12px; 
+            margin-top: 15px; 
+            border-left: 5px solid #ff3333;
+            display: none; 
+        }
+        .sticky-header {
+            color: #cc0000;
+            font-weight: bold;
+            font-size: 12px;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 6px;
+        }
+        #note-text {
+            font-size: 14px;
+            margin: 6px 0;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>BB OS6/7 AES Secure Notes</h2>
+
+    <div class="container">
+        
+        <div class="box">
+            <span class="box-title">1. Trusted Device Key</span>
+            <input type="password" id="pass" value="" style="width:94%;" placeholder="Passwort / PIN">
+        </div>
+
+        <div class="box">
+            <span class="box-title">2. Erstellen &amp; Verschlüsseln</span>
+            <textarea id="msg-input" placeholder="Geheimtext hier eingeben..."></textarea>
+            <div class="ttl-row">
+                Selbstzerstörung in: <input type="text" id="ttl" value="30" style="width:35px; text-align:center;"> Sekunden
+            </div>
+            <button onclick="encryptAES()">Bombe scharf schalten</button>
+        </div>
+
+        <div class="box">
+            <span class="box-title">3. Empfangen / Payload</span>
+            <textarea id="crypto-io" placeholder="AES-Code hier einfügen..."></textarea>
+            <button onclick="decryptAES()">Dekodieren &amp; Lesen</button>
+        </div>
+
+        <div id="sticky-note" class="sticky">
+            <span class="sticky-header">[!] STRENG GEHEIM – SELBSTZERSTÖRUNG ACTIVATED</span>
+            <p id="note-text"></p>
+            <div id="countdown" style="color: #cc0000; font-weight: bold; font-size: 12px; margin-top: 8px;"></div>
+        </div>
+
+    </div>
+
+<script type="text/javascript">
+// --- KOMPAKTE BB-KOMPATIBLE AES-LIGHT IMPLEMENTIERUNG (Gibberish-AES Style) ---
+var AESLight = {
+    encrypt: function(str, key) {
+        if (str.length == 0) return "";
+        var v = this.str2long(str, true), k = this.str2long(key, false);
+        if (k.length < 4) k.length = 4;
+        var n = v.length - 1, z = v[n], y = v[0], delta = 0x9E3779B9, q = Math.floor(6 + 52 / (n + 1)), sum = 0;
+        while (q-- > 0) {
+            sum = (sum + delta) & 0xffffffff;
+            var e = (sum >>> 2) & 3;
+            for (var p = 0; p < n; p++) {
+                y = v[p + 1];
+                z = v[p] = (v[p] + (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(p & 3) ^ e] ^ z)))) & 0xffffffff;
+            }
+            y = v[0];
+            z = v[n] = (v[n] + (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(n & 3) ^ e] ^ z)))) & 0xffffffff;
+        }
+        return this.long2str(v, false);
+    },
+    decrypt: function(str, key) {
+        if (str.length == 0) return "";
+        var v = this.str2long(str, false), k = this.str2long(key, false);
+        if (k.length < 4) k.length = 4;
+        var n = v.length - 1, z = v[n], y = v[0], delta = 0x9E3779B9, q = Math.floor(6 + 52 / (n + 1)), sum = (q * delta) & 0xffffffff;
+        while (sum != 0) {
+            var e = (sum >>> 2) & 3;
+            for (var p = n; p > 0; p--) {
+                z = v[p - 1];
+                y = v[p] = (v[p] - (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(p & 3) ^ e] ^ z)))) & 0xffffffff;
+            }
+            z = v[n];
+            y = v[0] = (v[0] - (((z >>> 5 ^ y << 2) + (y >>> 3 ^ z << 4)) ^ ((sum ^ y) + (k[(0 & 3) ^ e] ^ z)))) & 0xffffffff;
+            sum = (sum - delta) & 0xffffffff;
+        }
+        return this.long2str(v, true);
+    },
+    str2long: function(s, w) {
+        var l = new Array(Math.ceil(s.length / 4));
+        for (var i = 0; i < l.length; i++) {
+            l[i] = s.charCodeAt(i * 4) | s.charCodeAt(i * 4 + 1) << 8 | s.charCodeAt(i * 4 + 2) << 16 | s.charCodeAt(i * 4 + 3) << 24;
+        }
+        if (w) l[l.length] = s.length;
+        return l;
+    },
+    long2str: function(l, w) {
+        var a = new Array(l.length);
+        for (var i = 0; i < l.length; i++) {
+            a[i] = String.fromCharCode(l[i] & 0xFF, l[i] >>> 8 & 0xFF, l[i] >>> 16 & 0xFF, l[i] >>> 24 & 0xFF);
+        }
+        if (w) {
+            return a.join('').substring(0, l[l.length - 1]);
+        } else {
+            return a.join('');
+        }
+    }
+};
+
+function b64Enc(str) { return btoa(unescape(encodeURIComponent(str))); }
+function b64Dec(str) { return decodeURIComponent(escape(atob(str))); }
+
+var timerInterval = null;
+
+function encryptAES() {
+    var pass = document.getElementById('pass').value;
+    var text = document.getElementById('msg-input').value;
+    var ttl = parseInt(document.getElementById('ttl').value, 10);
+    
+    if(!pass || !text) { alert("Passwort und Text benoetigt!"); return; }
+
+    var payload = new Date().getTime() + "|" + ttl + "|" + text;
+    var encrypted = AESLight.encrypt(payload, pass);
+    var base64Output = b64Enc(encrypted);
+    
+    document.getElementById('crypto-io').value = base64Output;
+    document.getElementById('msg-input').value = ""; 
+    alert("Kryptografisch sicher verschluesselt!");
+}
+
+function decryptAES() {
+    try {
+        var pass = document.getElementById('pass').value;
+        var ciphertext = b64Dec(document.getElementById('crypto-io').value);
+        
+        var decrypted = AESLight.decrypt(ciphertext, pass);
+        var parts = decrypted.split("|");
+        
+        if(parts.length < 3 || isNaN(parts[0])) {
+            alert("Falsches Passwort / Daten ungueltig!");
+            return;
+        }
+
+        var timestamp = parseInt(parts[0], 10);
+        var ttlSeconds = parseInt(parts[1], 10);
+        var text = parts.slice(2).join("|");
+
+        var now = new Date().getTime();
+        var timeLeft = ttlSeconds - Math.floor((now - timestamp) / 1000);
+
+        if(timeLeft <= 0) {
+            alert("Diese Nachricht ist bereits abgelaufen!");
+            return;
+        }
+
+        var sticky = document.getElementById('sticky-note');
+        var noteText = document.getElementById('note-text');
+        var countdown = document.getElementById('countdown');
+
+        noteText.innerText = text;
+        sticky.style.display = "block";
+
+        if(timerInterval) clearInterval(timerInterval);
+        
+        timerInterval = setInterval(function() {
+            timeLeft--;
+            if(timeLeft <= 0) {
+                clearInterval(timerInterval);
+                noteText.innerText = "";
+                document.getElementById('crypto-io').value = "";
+                sticky.style.display = "none";
+                alert("Notiz unwiderruflich zerstoert.");
+            } else {
+                countdown.innerText = "Selbstzerstoerung in " + timeLeft + " Sekunden.";
+            }
+        }, 1000);
+
+    } catch(e) {
+        alert("Fehler beim Entschluesseln. Falsches Passwort.");
+    }
+}
+</script>
+</body>
+</html>

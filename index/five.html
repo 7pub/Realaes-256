@@ -3,94 +3,294 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Auto-OTP Notes with QR Rotator</title>
+    <title>Auto-OTP Secure Notes</title>
     <style>
-        body { 
-            background-color: #f4f6f8; 
-            color: #1a1f26; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            padding: 16px; 
-            margin: 0;
-            font-size: 14px;
+        :root {
+            --primary-color: #4285f4;
+            --icon-size: 24px;
         }
+
+        * {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        html, body { 
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+
+        body { 
+            background: #fafafa;
+            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+
         .app-title { 
             text-align: center; 
-            color: #007aff; 
-            font-size: 18px; 
-            font-weight: 600;
-            margin: 10px 0 20px 0; 
+            color: var(--primary-color); 
+            font-size: 24px;
+            font-weight: 400;
+            letter-spacing: -0.012em;
+            line-height: 32px;
+            margin: 24px 0 32px 0;
         }
+
         .card { 
-            border: 1px solid #e1e5ea; 
-            border-radius: 10px;
-            padding: 16px; 
-            margin-bottom: 16px; 
             background-color: #ffffff;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.24);
+            transition: box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
         }
+
+        .card:hover {
+            box-shadow: 0 3px 6px 0 rgba(0, 0, 0, 0.16), 0 3px 6px 0 rgba(0, 0, 0, 0.23);
+        }
+
         .card-title {
-            color: #4a5568;
+            color: #64748b;
             font-size: 12px;
-            font-weight: bold;
-            margin-bottom: 8px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            margin-bottom: 16px;
             display: block;
             text-transform: uppercase;
         }
+
         textarea { 
-            width: 95%; 
-            height: 65px; 
-            background-color: #f8fafc; 
-            color: #1a1f26; 
-            border: 1px solid #cbd5e1; 
-            border-radius: 6px;
-            padding: 8px; 
+            width: 100%;
+            height: 100px;
+            background-color: #f1f3f4;
+            color: #333;
+            border: none;
+            border-radius: 4px;
+            padding: 16px;
+            box-sizing: border-box;
             font-size: 14px;
+            font-family: inherit;
+            line-height: 20px;
+            resize: vertical;
+            outline: none;
+            transition: background-color 300ms;
         }
+
+        textarea:focus {
+            background-color: #e8eaed;
+        }
+
         input { 
-            background-color: #f8fafc; 
-            color: #1a1f26; 
-            border: 1px solid #cbd5e1; 
-            border-radius: 6px;
-            padding: 8px; 
+            background-color: #f1f3f4;
+            color: #333;
+            border: none;
+            border-radius: 4px;
+            padding: 16px;
             font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: background-color 300ms;
+            box-sizing: border-box;
         }
+
+        input:focus {
+            background-color: #e8eaed;
+        }
+
         button { 
-            background-color: #007aff; 
-            color: #ffffff; 
-            border: none; 
-            border-radius: 6px;
-            padding: 12px; 
-            width: 100%; 
-            font-weight: 600; 
-            cursor: pointer; 
+            background: inherit;
+            color: var(--primary-color);
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            min-height: 36px;
+            font-weight: 700;
             font-size: 14px;
-            margin-top: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            white-space: nowrap;
+            user-select: none;
+            -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+            touch-action: manipulation;
+            margin-top: 16px;
+            width: 100%;
+            transition: background-color 300ms;
         }
-        .btn-dark { background-color: #4a5568; margin-top: 5px; }
-        .btn-danger { background-color: #d9534f; margin-top: 5px; }
-        .setting-row { margin-top: 10px; color: #64748b; font-size: 13px; }
-        .status-bar { font-size: 11px; color: #007aff; margin-top: 5px; font-weight: bold; }
+
+        button:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: currentColor;
+            opacity: 0;
+            border-radius: 4px;
+            transition: opacity 300ms;
+            z-index: -1;
+        }
+
+        button:hover:before {
+            opacity: 0.1;
+        }
+
+        button:focus:before {
+            opacity: 0.2;
+        }
+
+        .btn-dark { 
+            color: #4a5568;
+            margin-top: 8px;
+        }
+
+        .btn-danger { 
+            color: #d9534f;
+            margin-top: 8px;
+        }
+
+        .setting-row { 
+            margin-top: 16px;
+            color: #64748b;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setting-row input {
+            width: 60px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .status-bar { 
+            font-size: 12px;
+            color: var(--primary-color);
+            margin-top: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
         
-        /* QR-Code Container zentriert */
+        /* QR-Code Container */
         .qr-container {
             text-align: center;
-            margin-top: 15px;
-            padding: 10px;
-            background: #fff;
+            margin-top: 20px;
+            padding: 20px;
+            background: #f1f3f4;
             display: none;
-            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
         }
+
+        .qr-container.show {
+            display: block;
+            animation: fadeIn 300ms ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
         .qr-container table {
-            margin: 0 auto; /* Wichtig für korrekte Zentrierung im BB-Browser */
+            margin: 0 auto;
+        }
+
+        .qr-container > div:last-child {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 12px;
+            font-weight: 500;
         }
 
         .sticky-note { 
-            background-color: #fff3cd; 
-            color: #664d03; 
-            padding: 16px; 
-            margin-top: 20px; 
-            border: 1px solid #ffe69c;
+            background-color: #fff3cd;
+            color: #664d03;
+            padding: 20px;
+            margin-top: 20px;
             border-radius: 8px;
-            display: none; 
+            display: none;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+            animation: slideUp 300ms ease-out;
+        }
+
+        .sticky-note.show {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from { 
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .sticky-note > span {
+            color: #b70000;
+            font-weight: 700;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .sticky-note p {
+            margin: 12px 0 0 0;
+            word-break: break-word;
+            line-height: 1.6;
+        }
+
+        #countdown {
+            color: #b70000;
+            font-weight: 700;
+            font-size: 13px;
+            margin-top: 12px;
+            letter-spacing: 0.04em;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+
+            .app-title {
+                font-size: 20px;
+                margin: 16px 0 24px 0;
+            }
+
+            .card {
+                padding: 16px;
+            }
         }
     </style>
 
@@ -98,48 +298,51 @@
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
-
-    <div class="app-title">Auto-OTP Secure Notes</div>
-        
-    <!-- Sektion 1: Schlüsselmanagement, QR Setup & Rotation -->
-    <div class="card">
-        <span class="card-title">1. Master Token Seed (Koppelung)</span>
-        <input type="text" id="master-seed" value="GEHEIMER_P2P_SEED" style="width:94%;" onchange="updateLiveKey()">
-        <div id="otp-status" class="status-bar">Berechne Zeitfenster...</div>
-        
-        <button class="btn-dark" onclick="toggleQR()">QR-Code für Partner anzeigen</button>
-        <button class="btn-danger" onclick="resetMasterSeed()">🚨 Key rotieren / Reset</button>
-        
-        <div id="qrcode-box" class="qr-container">
-            <div id="qrcode"></div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 8px;">Mit zweitem Gerät scannen, um Seed zu synchronisieren.</div>
+    <div class="container">
+        <div class="app-title">Auto-OTP Secure Notes</div>
+            
+        <!-- Section 1: Master Key Setup & QR Code -->
+        <div class="card">
+            <span class="card-title">Master Token Seed</span>
+            <input type="text" id="master-seed" value="GEHEIMER_P2P_SEED" onchange="updateLiveKey()">
+            <div id="otp-status" class="status-bar">Computing time window...</div>
+            
+            <button class="btn-dark" onclick="toggleQR()">Display QR Code</button>
+            <button class="btn-danger" onclick="resetMasterSeed()">🚨 Rotate Key</button>
+            
+            <div id="qrcode-box" class="qr-container">
+                <div id="qrcode"></div>
+                <div>Scan with second device to sync seed</div>
+            </div>
         </div>
-    </div>
 
-    <!-- Sektion 2: Senden -->
-    <div class="card">
-        <span class="card-title">2. Nachricht schreiben (Auto-Verschlüsselung)</span>
-        <textarea id="msg-input" placeholder="Text eingeben..." onkeyup="autoEncrypt()"></textarea>
-        <div class="setting-row">
-            Zerstörung nach: <input type="text" id="ttl" value="30" style="width:35px; text-align:center; padding:4px;" onchange="autoEncrypt()"> Sek.
+        <!-- Section 2: Send Message -->
+        <div class="card">
+            <span class="card-title">Send Message (Auto-Encrypted)</span>
+            <textarea id="msg-input" placeholder="Enter message..." onkeyup="autoEncrypt()"></textarea>
+            <div class="setting-row">
+                <label for="ttl">Auto-destroy in:</label>
+                <input type="text" id="ttl" value="30" onchange="autoEncrypt()">
+                <span>seconds</span>
+            </div>
         </div>
-    </div>
 
-    <!-- Sektion 3: Empfangen -->
-    <div class="card">
-        <span class="card-title">3. Verschlüsselter Live-Payload (P2P)</span>
-        <textarea id="crypto-io" placeholder="AES-Code einfügen für Auto-Decryption..." onkeyup="autoDecrypt()" onchange="autoDecrypt()"></textarea>
-    </div>
+        <!-- Section 3: Receive Message -->
+        <div class="card">
+            <span class="card-title">Encrypted Payload (P2P)</span>
+            <textarea id="crypto-io" placeholder="Paste encrypted code for auto-decryption..." onkeyup="autoDecrypt()" onchange="autoDecrypt()"></textarea>
+        </div>
 
-    <!-- Display-Overlay für entschlüsselte temporäre Notizen -->
-    <div id="sticky-note" class="sticky-note">
-        <span style="color:#b70000; font-weight:bold; font-size:12px; text-transform:uppercase;">⚠️ Temporäre Ansicht</span>
-        <p id="note-text"></p>
-        <div id="countdown" style="color: #b70000; font-weight: bold; font-size: 13px; margin-top: 10px;"></div>
+        <!-- Temporary Note Display -->
+        <div id="sticky-note" class="sticky-note">
+            <span>⚠️ Temporary View</span>
+            <p id="note-text"></p>
+            <div id="countdown"></div>
+        </div>
     </div>
 
 <script type="text/javascript">
-// --- GLOBALER TIMER FÜR DECRYPTION ---
+// --- GLOBAL TIMER FOR DECRYPTION ---
 var timerInterval = null;
 var qrObj = null;
 
@@ -156,14 +359,14 @@ function getOTPKeyByWindow(seed, windowOffset) {
     return "OTP_" + Math.abs(hash);
 }
 
-// Live-Ticker für das 30-Sekunden-Zeitfenster in der UI
+// Live ticker for the 30-second time window in the UI
 function startLiveTimer() {
     setInterval(function() {
         var now = new Date();
         var secondsLeft = 30 - (now.getSeconds() % 30);
         var seed = document.getElementById('master-seed').value;
         var currentKey = getOTPKeyByWindow(seed, 0);
-        document.getElementById('otp-status').innerText = "Aktiver Key: " + currentKey + " (Wechsel in " + secondsLeft + "s)";
+        document.getElementById('otp-status').innerText = "Active key: " + currentKey + " (changes in " + secondsLeft + "s)";
         
         if(document.getElementById('msg-input').value.length > 0) {
             autoEncrypt();
@@ -171,7 +374,7 @@ function startLiveTimer() {
     }, 1000);
 }
 
-// --- OFFLINE QR-CODE GENERATOR LOGIK ---
+// --- OFFLINE QR-CODE GENERATOR LOGIC ---
 function drawQRCode(text) {
     document.getElementById('qrcode').innerHTML = "";
     qrObj = new QRCode(document.getElementById("qrcode"), {
@@ -186,19 +389,19 @@ function toggleQR() {
     var box = document.getElementById('qrcode-box');
     var seed = document.getElementById('master-seed').value;
     
-    if (box.style.display === "block") {
-        box.style.display = "none";
+    if (box.classList.contains('show')) {
+        box.classList.remove('show');
     } else {
-        box.style.display = "block";
+        box.classList.add('show');
         drawQRCode(seed);
     }
 }
 
 // --- KEY ROTATION & PANIC RESET ---
 function resetMasterSeed() {
-    var check = confirm("Möchtest du den aktuellen Master Seed wirklich vernichten und einen neuen Schlüssel generieren? Dein Partner muss den neuen QR-Code zwingend scannen!");
+    var check = confirm("Delete the current Master Seed and generate a new key? Your partner must scan the new QR code!");
     if (check) {
-        // Generiere unvorhersehbaren Zufallswert (vollständig ES3 / BB OS6+ kompatibel)
+        // Generate random value (fully ES3 compatible)
         var randomPart = Math.floor(Math.random() * 9999999);
         var timePart = new Date().getTime();
         var combined = "SEED_" + timePart + "_" + randomPart;
@@ -210,27 +413,27 @@ function resetMasterSeed() {
         }
         var newSeed = "SECURE_" + Math.abs(hash);
         
-        // UI und Werte hart zurücksetzen
+        // Reset UI and values
         document.getElementById('master-seed').value = newSeed;
         document.getElementById('msg-input').value = "";
         document.getElementById('crypto-io').value = "";
-        document.getElementById('sticky-note').style.display = "none";
+        document.getElementById('sticky-note').classList.remove('show');
         
         if(timerInterval) {
             clearInterval(timerInterval);
         }
         
-        // Falls das QR-Sichtfenster offen war, direkt neu zeichnen
+        // Redraw QR if visible
         var box = document.getElementById('qrcode-box');
-        if (box.style.display === "block") {
+        if (box.classList.contains('show')) {
             drawQRCode(newSeed);
         }
         
-        alert("Alter Schlüssel wurde im RAM überschrieben. Neuer Seed ist aktiv.");
+        alert("Old key has been overwritten in RAM. New seed is active.");
     }
 }
 
-// --- XXTEA ENCRYPTION ENGINE (LEICHTGEWICHTIGER AES-ERSATZ) ---
+// --- XXTEA ENCRYPTION ENGINE (LIGHTWEIGHT AES REPLACEMENT) ---
 var AESLight = {
     encrypt: function(str, key) {
         if (str.length == 0) return "";
@@ -286,7 +489,7 @@ var AESLight = {
 function b64Enc(str) { return btoa(unescape(encodeURIComponent(str))); }
 function b64Dec(str) { try { return decodeURIComponent(escape(atob(str))); } catch(e) { return ""; } }
 
-// --- AUTO KRYPTO AKTIONEN ---
+// --- AUTO CRYPTO ACTIONS ---
 function autoEncrypt() {
     var seed = document.getElementById('master-seed').value;
     var text = document.getElementById('msg-input').value;
@@ -311,7 +514,7 @@ function autoDecrypt() {
 
     var decrypted = "";
     var parts = [];
-    var windowsToTry = [0, -1]; // Erlaubt 30 Sekunden Drift-Toleranz zwischen den Systemuhren
+    var windowsToTry = [0, -1]; // Allow 30-second clock drift tolerance
 
     for (var i = 0; i < windowsToTry.length; i++) {
         var testKey = getOTPKeyByWindow(seed, windowsToTry[i]);
@@ -338,10 +541,10 @@ function autoDecrypt() {
     var noteText = document.getElementById('note-text');
     var countdown = document.getElementById('countdown');
 
-    if (noteText.innerText === text && sticky.style.display === "block") return;
+    if (noteText.innerText === text && sticky.classList.contains('show')) return;
 
     noteText.innerText = text;
-    sticky.style.display = "block";
+    sticky.classList.add('show');
     document.getElementById('msg-input').value = ""; 
 
     if(timerInterval) clearInterval(timerInterval);
@@ -352,9 +555,9 @@ function autoDecrypt() {
             clearInterval(timerInterval);
             noteText.innerText = "";
             document.getElementById('crypto-io').value = "";
-            sticky.style.display = "none";
+            sticky.classList.remove('show');
         } else {
-            countdown.innerText = "Automatische Zerstörung in " + timeLeft + " Sekunden.";
+            countdown.innerText = "Auto-destruction in " + timeLeft + " seconds.";
         }
     }, 1000);
 }
@@ -363,7 +566,7 @@ function updateLiveKey() {
     if(document.getElementById('msg-input').value.length > 0) autoEncrypt();
 }
 
-// Systemstart
+// System startup
 startLiveTimer();
 </script>
 </body>
